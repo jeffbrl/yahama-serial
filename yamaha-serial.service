@@ -1,0 +1,16 @@
+[Unit]
+Description=Yamaha RX-Z1 Serial Controller API & Web UI
+After=network.target
+
+[Service]
+Type=simple
+User=jeffl
+WorkingDirectory=/home/jeffl/development/yamaha-serial
+ExecStart=/home/jeffl/development/yamaha-serial/.venv/bin/yamaha-serial
+Restart=always
+RestartSec=5
+Environment=MOCK_SERIAL=false
+Environment=SERIAL_PORT=/dev/ttyUSB0
+
+[Install]
+WantedBy=multi-user.target

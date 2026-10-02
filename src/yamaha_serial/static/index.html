@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Yamaha RX-Z1 Controller</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              gold: '#D4AF37',
+              dark: '#121214',
+              surface: '#1E1E24',
+              accent: '#3B82F6'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom knob / slider styling */
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 28px;
+      width: 28px;
+      border-radius: 50%;
+      background: #D4AF37;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+    }
+  </style>
+</head>
+<body class="bg-brand-dark text-gray-100 min-h-screen flex flex-col items-center justify-start p-4 select-none">
+  <!-- Top Header / Model Badge -->
+  <header class="w-full max-w-md flex justify-between items-center py-4 border-b border-gray-800">
+    <div>
+      <h1 class="text-xl font-bold tracking-wider text-brand-gold">YAMAHA</h1>
+      <p class="text-xs text-gray-400 tracking-widest uppercase">RX-Z1 Natural Sound AV Receiver</p>
+    </div>
+    <div id="connection-badge" class="px-2.5 py-1 text-xs rounded-full bg-gray-800 text-gray-400 border border-gray-700 flex items-center space-x-1.5">
+      <span id="status-dot" class="w-2 h-2 rounded-full bg-gray-500"></span>
+      <span id="status-text">Connecting...</span>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="w-full max-w-md flex flex-col space-y-6 mt-6">
+    <!-- Power & Status Row -->
+    <div class="bg-brand-surface p-5 rounded-2xl border border-gray-800 shadow-xl flex items-center justify-between">
+      <div>
+        <div class="text-xs uppercase text-gray-400 tracking-wider">Main Zone</div>
+        <div id="power-display" class="text-lg font-semibold text-gray-300">STANDBY</div>
+      </div>
+      <button id="btn-power" onclick="togglePower()" class="w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg bg-gray-800 text-gray-400 hover:bg-gray-700 active:scale-95 border border-gray-700">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Volume Control Card -->
+    <div class="bg-brand-surface p-6 rounded-2xl border border-gray-800 shadow-xl flex flex-col space-y-4">
+      <div class="flex justify-between items-baseline">
+        <span class="text-xs uppercase text-gray-400 tracking-wider">Master Volume</span>
+        <div class="text-right">
+          <span id="vol-db" class="text-2xl font-mono font-bold text-brand-gold">-40.0 dB</span>
+          <span id="vol-pct" class="text-xs text-gray-400 ml-1">(50%)</span>
+        </div>
+      </div>
+
+      <!-- Slider -->
+      <div class="pt-2">
+        <input id="vol-slider" type="range" min="0" max="100" value="50" oninput="onVolumeSliderChange(this.value)" class="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer outline-none accent-brand-gold" />
+      </div>
+
+      <!-- Volume Step Buttons & Mute -->
+      <div class="grid grid-cols-3 gap-3 pt-2">
+        <button onclick="volumeDown()" class="py-3 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 rounded-xl font-bold text-lg text-gray-200 border border-gray-700 transition active:scale-95">- VOL</button>
+        <button id="btn-mute" onclick="toggleMute()" class="py-3 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 rounded-xl font-semibold text-sm text-gray-300 border border-gray-700 transition active:scale-95">MUTE</button>
+        <button onclick="volumeUp()" class="py-3 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 rounded-xl font-bold text-lg text-gray-200 border border-gray-700 transition active:scale-95">+ VOL</button>
+      </div>
+    </div>
+
+    <!-- Input Source Selection -->
+    <div class="bg-brand-surface p-5 rounded-2xl border border-gray-800 shadow-xl flex flex-col space-y-3">
+      <div class="text-xs uppercase text-gray-400 tracking-wider">Input Selector</div>
+      <div id="inputs-container" class="grid grid-cols-3 gap-2.5">
+        <!-- Dynamically injected or predefined -->
+      </div>
+    </div>
+
+    <!-- DSP Sound Field Program -->
+    <div class="bg-brand-surface p-5 rounded-2xl border border-gray-800 shadow-xl flex flex-col space-y-3">
+      <div class="text-xs uppercase text-gray-400 tracking-wider">Cinema DSP Program</div>
+      <div id="dsp-container" class="grid grid-cols-2 gap-2.5">
+        <!-- DSP Programs injected -->
+      </div>
+    </div>
+  </main>
+
+  <footer class="mt-8 text-xs text-gray-500 text-center pb-6">
+    Yamaha RX-Z1 Serial Controller • <a href="/docs" target="_blank" class="underline hover:text-gray-400">OpenAPI Docs</a>
+  </footer>
+
+  <script>
+    const INPUTS = ["CD", "PHONO", "TUNER", "DVD", "D-TV", "CBL/SAT", "MD/TAPE", "CD-R", "VCR 1", "VCR 2", "VCR 3/DVR", "V-AUX"];
+    const DSPS = ["Surround Standard", "70mm Spectacular", "70mm Sci-Fi", "70mm Adventure", "Enhanced", "2ch Stereo", "Direct", "Concert Hall 1", "Jazz Club", "Rock Concert"];
+
+    let currentState = {};
+    let ws = null;
+    let debounceTimer = null;
+
+    function renderOptions() {
+      const inputsEl = document.getElementById('inputs-container');
+      inputsEl.innerHTML = INPUTS.map(inp => `
+        <button onclick="setInput('${inp}')" id="input-${inp.replace(/[\/\s]/g, '-')}" class="input-btn py-2.5 px-3 bg-gray-800/80 hover:bg-gray-700 rounded-xl text-xs font-semibold text-gray-300 border border-gray-700/60 transition truncate text-center">
+          ${inp}
+        </button>
+      `).join('');
+
+      const dspEl = document.getElementById('dsp-container');
+      dspEl.innerHTML = DSPS.map(dsp => `
+        <button onclick="setDSP('${dsp}')" id="dsp-${dsp.replace(/[\/\s]/g, '-')}" class="dsp-btn py-2.5 px-3 bg-gray-800/80 hover:bg-gray-700 rounded-xl text-xs font-semibold text-gray-300 border border-gray-700/60 transition truncate text-center">
+          ${dsp}
+        </button>
+      `).join('');
+    }
+
+    function updateUI(state) {
+      currentState = state;
+
+      // Connection & mode indicator
+      const badge = document.getElementById('connection-badge');
+      const dot = document.getElementById('status-dot');
+      const txt = document.getElementById('status-text');
+
+      if (state.connected) {
+        dot.className = "w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]";
+        txt.textContent = state.mock_mode ? "Simulator Mode" : "Serial Connected";
+        badge.className = "px-2.5 py-1 text-xs rounded-full bg-emerald-950/40 text-emerald-300 border border-emerald-800 flex items-center space-x-1.5";
+      } else {
+        dot.className = "w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]";
+        txt.textContent = "Offline";
+        badge.className = "px-2.5 py-1 text-xs rounded-full bg-red-950/40 text-red-300 border border-red-800 flex items-center space-x-1.5";
+      }
+
+      // Power
+      const isPowerOn = state.power === "ON";
+      const powerDisplay = document.getElementById('power-display');
+      const btnPower = document.getElementById('btn-power');
+
+      powerDisplay.textContent = state.power;
+      if (isPowerOn) {
+        powerDisplay.className = "text-lg font-bold text-emerald-400";
+        btnPower.className = "w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-[0_0_15px_rgba(52,211,153,0.4)] bg-emerald-600 text-white hover:bg-emerald-500 active:scale-95 border border-emerald-400";
+      } else {
+        powerDisplay.className = "text-lg font-semibold text-gray-400";
+        btnPower.className = "w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 bg-gray-800 text-gray-400 hover:bg-gray-700 active:scale-95 border border-gray-700";
+      }
+
+      // Volume
+      document.getElementById('vol-db').textContent = `${state.volume_db.toFixed(1)} dB`;
+      document.getElementById('vol-pct').textContent = `(${state.volume_percent}%)`;
+      document.getElementById('vol-slider').value = state.volume_percent;
+
+      // Mute
+      const btnMute = document.getElementById('btn-mute');
+      if (state.mute) {
+        btnMute.className = "py-3 bg-red-700 hover:bg-red-600 rounded-xl font-bold text-sm text-white border border-red-500 transition shadow-[0_0_10px_rgba(239,68,68,0.5)] active:scale-95";
+        btnMute.textContent = "MUTED";
+      } else {
+        btnMute.className = "py-3 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 rounded-xl font-semibold text-sm text-gray-300 border border-gray-700 transition active:scale-95";
+        btnMute.textContent = "MUTE";
+      }
+
+      // Highlight Active Input
+      document.querySelectorAll('.input-btn').forEach(el => {
+        el.classList.remove('bg-brand-gold', 'text-black', 'border-yellow-300', 'font-bold', 'shadow-[0_0_10px_rgba(212,175,55,0.4)]');
+        el.classList.add('bg-gray-800/80', 'text-gray-300', 'border-gray-700/60');
+      });
+      const activeInputBtn = document.getElementById(`input-${state.input.replace(/[\/\s]/g, '-')}`);
+      if (activeInputBtn) {
+        activeInputBtn.classList.remove('bg-gray-800/80', 'text-gray-300', 'border-gray-700/60');
+        activeInputBtn.classList.add('bg-brand-gold', 'text-black', 'border-yellow-300', 'font-bold', 'shadow-[0_0_10px_rgba(212,175,55,0.4)]');
+      }
+
+      // Highlight Active DSP
+      document.querySelectorAll('.dsp-btn').forEach(el => {
+        el.classList.remove('bg-blue-600', 'text-white', 'border-blue-400', 'font-bold', 'shadow-[0_0_10px_rgba(59,130,246,0.4)]');
+        el.classList.add('bg-gray-800/80', 'text-gray-300', 'border-gray-700/60');
+      });
+      const activeDspBtn = document.getElementById(`dsp-${state.dsp.replace(/[\/\s]/g, '-')}`);
+      if (activeDspBtn) {
+        activeDspBtn.classList.remove('bg-gray-800/80', 'text-gray-300', 'border-gray-700/60');
+        activeDspBtn.classList.add('bg-blue-600', 'text-white', 'border-blue-400', 'font-bold', 'shadow-[0_0_10px_rgba(59,130,246,0.4)]');
+      }
+    }
+
+    // Actions
+    async function togglePower() {
+      const nextPower = currentState.power === 'ON' ? 'STANDBY' : 'ON';
+      await fetch('/api/power', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ power: nextPower })
+      });
+    }
+
+    async function volumeUp() {
+      await fetch('/api/volume/up', { method: 'POST' });
+    }
+
+    async function volumeDown() {
+      await fetch('/api/volume/down', { method: 'POST' });
+    }
+
+    function onVolumeSliderChange(val) {
+      document.getElementById('vol-pct').textContent = `(${val}%)`;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetch('/api/volume/percent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ percent: parseInt(val, 10) })
+        });
+      }, 50);
+    }
+
+    async function toggleMute() {
+      await fetch('/api/mute/toggle', { method: 'POST' });
+    }
+
+    async function setInput(source) {
+      await fetch('/api/input', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source })
+      });
+    }
+
+    async function setDSP(dsp) {
+      await fetch('/api/dsp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dsp })
+      });
+    }
+
+    // WebSocket Connection with Auto-reconnect
+    function connectWS() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${window.location.host}/api/ws`);
+
+      ws.onmessage = (event) => {
+        try {
+          const state = JSON.parse(event.data);
+          updateUI(state);
+        } catch (e) {}
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectWS, 2000);
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
+    // Init
+    window.addEventListener('DOMContentLoaded', () => {
+      renderOptions();
+      connectWS();
+      // Initial state fetch
+      fetch('/api/state')
+        .then(r => r.json())
+        .then(state => updateUI(state))
+        .catch(console.error);
+    });
+  </script>
+</body>
+</html>
