@@ -1,11 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
-
-block_cipher = None
+from PyInstaller.utils.hooks import collect_all
 
 datas = [
     ('src/yamaha_serial/static', 'yamaha_serial/static'),
 ]
+binaries = []
 hiddenimports = [
     'uvicorn.logging',
     'uvicorn.loops',
@@ -18,12 +17,22 @@ hiddenimports = [
     'uvicorn.lifespans',
     'uvicorn.lifespans.on',
     'serial_asyncio',
+    'pydantic_settings',
 ]
+
+# Collect all modules and data for critical web packages
+for pkg in ['fastapi', 'starlette', 'pydantic', 'pydantic_core', 'pydantic_settings', 'uvicorn', 'anyio']:
+    pkg_datas, pkg_binaries, pkg_hiddenimports = collect_all(pkg)
+    datas += pkg_datas
+    binaries += pkg_binaries
+    hiddenimports += pkg_hiddenimports
+
+block_cipher = None
 
 a = Analysis(
     ['src/yamaha_serial/main.py'],
     pathex=['src'],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
