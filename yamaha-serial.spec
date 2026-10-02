@@ -1,6 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
+block_cipher = None
+
 datas = [
     ('src/yamaha_serial/static', 'yamaha_serial/static'),
 ]
@@ -20,18 +22,15 @@ hiddenimports = [
     'pydantic_settings',
 ]
 
-# Collect all modules and data for critical web packages
 for pkg in ['fastapi', 'starlette', 'pydantic', 'pydantic_core', 'pydantic_settings', 'uvicorn', 'anyio']:
     pkg_datas, pkg_binaries, pkg_hiddenimports = collect_all(pkg)
     datas += pkg_datas
     binaries += pkg_binaries
     hiddenimports += pkg_hiddenimports
 
-block_cipher = None
-
 a = Analysis(
-    ['src/yamaha_serial/main.py'],
-    pathex=['src'],
+    ['run.py'],
+    pathex=['src', '.'],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

@@ -1,6 +1,7 @@
 """Main application entry point for Yamaha RX-Z1 Serial Controller."""
 
 import os
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
@@ -35,8 +36,12 @@ app = FastAPI(
 setup_routes(controller)
 app.include_router(api_router)
 
-# Static files and Web UI
-STATIC_DIR = Path(__file__).parent / "static"
+# Resolve static directory (handles PyInstaller bundle _MEIPASS extraction)
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    STATIC_DIR = Path(sys._MEIPASS) / "yamaha_serial" / "static"
+else:
+    STATIC_DIR = Path(__file__).parent / "static"
+
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -47,7 +52,7 @@ if STATIC_DIR.exists():
 
 def run():
     uvicorn.run(
-        "yamaha_serial.main:app",
+        app,
         host=settings.HOST,
         port=settings.PORT,
         log_level=settings.LOG_LEVEL,
