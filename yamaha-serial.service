@@ -5,12 +5,10 @@ After=network.target
 [Service]
 Type=simple
 User=jeffl
-WorkingDirectory=/home/jeffl/development/yamaha-serial
-ExecStart=/home/jeffl/development/yamaha-serial/.venv/bin/yamaha-serial
+# When using system config, the service can find /etc/yamaha-serial/config.env automatically
+ExecStart=/usr/local/bin/yamaha-serial-armv6
 Restart=always
 RestartSec=5
-Environment=MOCK_SERIAL=false
-Environment=SERIAL_PORT=/dev/ttyUSB0
 
 [Install]
 WantedBy=multi-user.target

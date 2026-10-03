@@ -100,3 +100,12 @@ def test_api_endpoints():
         res = client.get("/")
         assert res.status_code == 200
         assert "Yamaha RX-Z1 Controller" in res.text
+
+def test_config_search_precedence(monkeypatch, tmp_path):
+    from yamaha_serial.config import find_config_file
+    
+    # Test explicit override
+    test_conf = tmp_path / "custom.conf"
+    test_conf.write_text("MOCK_SERIAL=true\n")
+    monkeypatch.setenv("YAMAHA_CONFIG_FILE", str(test_conf))
+    assert find_config_file() == str(test_conf)

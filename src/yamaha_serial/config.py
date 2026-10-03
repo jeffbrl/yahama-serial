@@ -2,31 +2,70 @@
 
 import os
 import sys
+import logging
 from pathlib import Path
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Determine directory where the binary or script is located
-if getattr(sys, "frozen", False):
-    # Running in a PyInstaller bundle -> directory of the executable
-    APP_DIR = Path(sys.executable).resolve().parent
-else:
-    # Running in normal Python -> project root directory
-    APP_DIR = Path(__file__).resolve().parent.parent.parent
+logger = logging.getLogger(__name__)
 
-# Check for .env in current working directory first, fallback to executable directory
-CWD_ENV = Path.cwd() / ".env"
-EXE_ENV = APP_DIR / ".env"
 
-if CWD_ENV.exists():
-    ENV_FILE_PATH = str(CWD_ENV)
-elif EXE_ENV.exists():
-    ENV_FILE_PATH = str(EXE_ENV)
-else:
-    ENV_FILE_PATH = ".env"
+def find_config_file() -> Optional[str]:
+    """Search standard Linux and local paths for configuration file.
+    
+    Precedence:
+    1. YAMAHA_CONFIG_FILE environment variable (explicit override)
+    2. /etc/yamaha-serial/config.env or /etc/yamaha-serial/yamaha-serial.conf
+    3. ~/.config/yamaha-serial/config.env
+    4. .env in current working directory
+    5. .env in executable/project directory
+    """
+    explicit = os.environ.get("YAMAHA_CONFIG_FILE")
+    if explicit and Path(explicit).is_file():
+        return explicit
+
+    # Determine executable/project directory
+    if getattr(sys, "frozen", False):
+        app_dir = Path(sys.executable).resolve().parent
+    else:
+        app_dir = Path(__file__).resolve().parent.parent.parent
+
+    home_config = Path.home() / ".config" / "yamaha-serial"
+
+    candidates = [
+        Path("/etc/yamaha-serial/config.env"),
+        Path("/etc/yamaha-serial/yamaha-serial.conf"),
+        Path("/etc/yamaha-serial.conf"),
+        home_config / "config.env",
+        home_config / "yamaha-serial.conf",
+        Path.cwd() / "config.env",
+        Path.cwd() / ".env",
+        app_dir / "config.env",
+        app_dir / ".env",
+    ]
+
+    for path in candidates:
+        try:
+            if path.is_file():
+                return str(path)
+        except OSError:
+            continue
+
+    return None
+
+
+CONFIG_FILE_PATH = find_config_file()
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=CONFIG_FILE_PATH,
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # Path to loaded config file (if any)
+    CONFIG_PATH: Optional[str] = CONFIG_FILE_PATH
 
     # Serial Port Settings
     SERIAL_PORT: str = "/dev/ttyUSB0"
