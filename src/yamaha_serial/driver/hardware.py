@@ -89,5 +89,9 @@ class HardwareSerialDriver(BaseSerialDriver):
             if not self.is_connected() or not self.transport:
                 raise ConnectionError(f"Serial port {self.port} is not connected.")
 
+            hex_repr = " ".join(f"{b:02X}" for b in data)
+            ascii_repr = data.decode("ascii", errors="replace").strip()
+            logger.info(f"Writing to serial {self.port}: {hex_repr} ('{ascii_repr}')")
+
             self.transport.write(data)
             return None

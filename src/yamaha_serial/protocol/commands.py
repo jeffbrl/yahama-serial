@@ -44,19 +44,22 @@ class DSPProgram(str, Enum):
 
 
 # Forward transmit command codes
+# In Yamaha RS-232 / IR protocol, Main Zone input selections use custom code 7A (07Axx):
+# PHONO: 07A14, CD: 07A15, TUNER: 07A16, MD/TAPE: 07A18, CD-R: 07A19, DVD: 07AC1,
+# D-TV: 07AC2, CBL/SAT: 07AC3, VCR 1: 07AC4, VCR 2: 07AC5, VCR 3/DVR: 07AC6, V-AUX: 07AC7
 INPUT_COMMAND_MAP = {
-    InputSource.PHONO: "07EA1",
-    InputSource.CD: "07EA2",
-    InputSource.TUNER: "07EA3",
-    InputSource.MD_TAPE: "07EA4",
-    InputSource.CD_R: "07EA5",
-    InputSource.DVD: "07EC1",
-    InputSource.D_TV: "07EC2",
-    InputSource.CBL_SAT: "07EC3",
-    InputSource.VCR_1: "07EC4",
-    InputSource.VCR_2: "07EC5",
-    InputSource.VCR_3: "07EC6",
-    InputSource.V_AUX: "07EC7",
+    InputSource.PHONO: "07A14",
+    InputSource.CD: "07A15",
+    InputSource.TUNER: "07A16",
+    InputSource.MD_TAPE: "07A18",
+    InputSource.CD_R: "07A19",
+    InputSource.DVD: "07AC1",
+    InputSource.D_TV: "07AC2",
+    InputSource.CBL_SAT: "07AC3",
+    InputSource.VCR_1: "07AC4",
+    InputSource.VCR_2: "07AC5",
+    InputSource.VCR_3: "07AC6",
+    InputSource.V_AUX: "07AC7",
 }
 
 POWER_COMMAND_MAP = {
@@ -130,6 +133,21 @@ RX_Z1_INPUT_4026 = {
 
 # Reverse maps for command reflection
 CODE_TO_INPUT = {v: k for k, v in INPUT_COMMAND_MAP.items()}
+# Support legacy 07E codes and alternative formats if reflected
+CODE_TO_INPUT.update({
+    "07EA1": InputSource.PHONO,
+    "07EA2": InputSource.CD,
+    "07EA3": InputSource.TUNER,
+    "07EA4": InputSource.MD_TAPE,
+    "07EA5": InputSource.CD_R,
+    "07EC1": InputSource.DVD,
+    "07EC2": InputSource.D_TV,
+    "07EC3": InputSource.CBL_SAT,
+    "07EC4": InputSource.VCR_1,
+    "07EC5": InputSource.VCR_2,
+    "07EC6": InputSource.VCR_3,
+    "07EC7": InputSource.V_AUX,
+})
 CODE_TO_POWER = {
     "07E7E": PowerState.ON,
     "07E7F": PowerState.STANDBY,
