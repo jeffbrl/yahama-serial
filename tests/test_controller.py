@@ -138,3 +138,15 @@ async def test_unsolicited_incoming_serial_frames():
     assert controller.state.volume_percent == prev_vol + 2
 
     await controller.stop()
+
+def test_rx_z1_real_unsolicited_frames():
+    from yamaha_serial.protocol.commands import parse_serial_message, InputSource, PowerState
+    
+    assert parse_serial_message("102100") == {"input": InputSource.PHONO}
+    assert parse_serial_message("102101") == {"input": InputSource.CD}
+    assert parse_serial_message("102102") == {"input": InputSource.TUNER}
+    assert parse_serial_message("102105") == {"input": InputSource.DVD}
+    assert parse_serial_message("102001") == {"power": PowerState.ON}
+    assert parse_serial_message("102000") == {"power": PowerState.STANDBY}
+    assert parse_serial_message("102200") == {"mute": False}
+    assert parse_serial_message("102205") == {"mute": True}

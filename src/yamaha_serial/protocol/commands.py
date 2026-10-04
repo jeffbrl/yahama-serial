@@ -43,7 +43,7 @@ class DSPProgram(str, Enum):
     SURROUND_STANDARD = "Surround Standard"
 
 
-# Forward code maps
+# Forward transmit command codes
 INPUT_COMMAND_MAP = {
     InputSource.PHONO: "07EA1",
     InputSource.CD: "07EA2",
@@ -88,11 +88,29 @@ DSP_COMMAND_MAP = {
     DSPProgram.ROCK_CONCERT: "07EBB",
 }
 
-# Reverse maps for unsolicited feedback parsing
+# Real RX-Z1 unsolicited feedback status codes (1021xx for Main Zone input)
+RX_Z1_STATUS_INPUT = {
+    "00": InputSource.PHONO,
+    "01": InputSource.CD,
+    "02": InputSource.TUNER,
+    "03": InputSource.MD_TAPE,
+    "04": InputSource.CD_R,
+    "05": InputSource.DVD,
+    "06": InputSource.D_TV,
+    "07": InputSource.CBL_SAT,
+    "08": InputSource.VCR_1,
+    "09": InputSource.VCR_2,
+    "0A": InputSource.VCR_3,
+    "0B": InputSource.V_AUX,
+}
+
+# Reverse maps for command reflection
 CODE_TO_INPUT = {v: k for k, v in INPUT_COMMAND_MAP.items()}
 CODE_TO_POWER = {
     "07E7E": PowerState.ON,
     "07E7F": PowerState.STANDBY,
+    "102001": PowerState.ON,
+    "102000": PowerState.STANDBY,
 }
 CODE_TO_DSP = {v: k for k, v in DSP_COMMAND_MAP.items()}
 
@@ -119,8 +137,12 @@ def percent_to_db(percent: int) -> float:
 def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
     """Parse incoming ASCII frame from RX-Z1.
     
-    The RX-Z1 responds with or broadcasts status codes.
-    Returns a dict with state update keys (e.g. power, input, volume_step, mute, etc.).
+    The Yamaha RX-Z1 unsolicited report frames:
+      - 1021xx: Main Zone Input (00=PHONO, 01=CD, 02=TUNER, 05=DVD, ...)
+      - 1020xx: Main Zone Power (01=ON, 00=STANDBY)
+      - 1022xx: Mute state (00=MUTE OFF, 05=MUTE ON)
+      - 1028xx / 028xx: Master Volume Level
+      - 07Exxx: Command echo
     """
     clean = raw_msg.strip("\x02\x03\r\n ").upper()
     updates: Dict[str, Any] = {}
@@ -128,12 +150,45 @@ def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
     if not clean:
         return updates
 
-    # Check Power
+    # RX-Z1 Unsolicited Input Frame: 1021xx or 021xx
+    if clean.startswith("1021") and len(clean) == 6:
+        sub = clean[4:6]
+        if sub in RX_Z1_STATUS_INPUT:
+            updates["input"] = RX_Z1_STATUS_INPUT[sub]
+            return updates
+    elif clean.startswith("021") and len(clean) == 5:
+        sub = clean[3:5]
+        if sub in RX_Z1_STATUS_INPUT:
+            updates["input"] = RX_Z1_STATUS_INPUT[sub]
+            return updates
+
+    # RX-Z1 Unsolicited Power Frame: 1020xx or 020xx
+    if clean.startswith("1020") and len(clean) == 6:
+        pwr_code = clean[4:6]
+        updates["power"] = PowerState.ON if pwr_code == "01" else PowerState.STANDBY
+        return updates
+    elif clean.startswith("020") and len(clean) == 5:
+        pwr_code = clean[3:5]
+        updates["power"] = PowerState.ON if pwr_code == "01" else PowerState.STANDBY
+        return updates
+
+    # RX-Z1 Unsolicited Mute Frame: 1022xx or 022xx
+    # From traces: 102200 is Mute Off, 102205 is Mute On / Attenuate
+    if clean.startswith("1022") and len(clean) == 6:
+        mute_code = clean[4:6]
+        updates["mute"] = (mute_code != "00")
+        return updates
+    elif clean.startswith("022") and len(clean) == 5:
+        mute_code = clean[3:5]
+        updates["mute"] = (mute_code != "00")
+        return updates
+
+    # Check Power reflection
     if clean in CODE_TO_POWER:
         updates["power"] = CODE_TO_POWER[clean]
         return updates
 
-    # Check Input
+    # Check Input reflection
     if clean in CODE_TO_INPUT:
         updates["input"] = CODE_TO_INPUT[clean]
         return updates
@@ -143,7 +198,7 @@ def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
         updates["dsp"] = CODE_TO_DSP[clean]
         return updates
 
-    # Check Mute
+    # Check Mute reflection
     if clean == VOLUME_COMMANDS["MUTE_ON"]:
         updates["mute"] = True
         return updates
