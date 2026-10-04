@@ -109,3 +109,32 @@ def test_config_search_precedence(monkeypatch, tmp_path):
     test_conf.write_text("MOCK_SERIAL=true\n")
     monkeypatch.setenv("YAMAHA_CONFIG_FILE", str(test_conf))
     assert find_config_file() == str(test_conf)
+
+@pytest.mark.asyncio
+async def test_unsolicited_incoming_serial_frames():
+    driver = MockSerialDriver()
+    controller = YamahaController(driver)
+    await controller.start()
+
+    # Test incoming power update from physical remote / front panel
+    driver.simulate_incoming(b"\x0207E7E\x03")
+    await asyncio.sleep(0.05)
+    assert controller.state.power == PowerState.ON
+
+    # Test incoming input update (e.g. user selected DVD on front panel)
+    driver.simulate_incoming(b"\x0207EC1\x03")
+    await asyncio.sleep(0.05)
+    assert controller.state.input == InputSource.DVD
+
+    # Test incoming mute update
+    driver.simulate_incoming(b"\x0207EA7\x03")
+    await asyncio.sleep(0.05)
+    assert controller.state.mute is True
+
+    # Test incoming volume step
+    prev_vol = controller.state.volume_percent
+    driver.simulate_incoming(b"\x0207ED0\x03")
+    await asyncio.sleep(0.05)
+    assert controller.state.volume_percent == prev_vol + 2
+
+    await controller.stop()

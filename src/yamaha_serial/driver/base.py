@@ -1,7 +1,7 @@
 """Abstract base class for Serial communication."""
 
 import abc
-from typing import Optional
+from typing import Optional, Callable
 
 
 class BaseSerialDriver(abc.ABC):
@@ -23,4 +23,9 @@ class BaseSerialDriver(abc.ABC):
     @abc.abstractmethod
     def is_connected(self) -> bool:
         """Return True if connection is active."""
+        pass
+
+    @abc.abstractmethod
+    def set_data_callback(self, callback: Optional[Callable[[bytes], None]]) -> None:
+        """Set callback invoked whenever incoming bytes arrive from receiver."""
         pass

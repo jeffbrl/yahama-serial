@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Callable
 from yamaha_serial.driver.base import BaseSerialDriver
 
 logger = logging.getLogger(__name__)
@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 class MockSerialDriver(BaseSerialDriver):
     def __init__(self):
         self._connected = False
+        self._callback: Optional[Callable[[bytes], None]] = None
 
     async def connect(self) -> None:
         await asyncio.sleep(0.05)
@@ -24,15 +25,21 @@ class MockSerialDriver(BaseSerialDriver):
     def is_connected(self) -> bool:
         return self._connected
 
+    def set_data_callback(self, callback: Optional[Callable[[bytes], None]]) -> None:
+        self._callback = callback
+
     async def send_command(self, data: bytes) -> Optional[bytes]:
         if not self._connected:
             raise ConnectionError("Mock serial driver is not connected.")
         
-        # Simulate slight round-trip communication latency
         await asyncio.sleep(0.03)
         hex_repr = " ".join(f"{b:02X}" for b in data)
         ascii_repr = data.decode("ascii", errors="replace").strip()
         logger.info(f"[MockSerialDriver] Sent bytes: {hex_repr} ('{ascii_repr}')")
 
-        # Simulate ACK response
         return b"\x06"
+
+    def simulate_incoming(self, data: bytes) -> None:
+        """Helper to test unsolicited incoming serial frames from the receiver."""
+        if self._callback:
+            self._callback(data)

@@ -1,15 +1,7 @@
-"""Yamaha RX-Z1 RS-232 Serial Protocol Definitions and Encoders.
-
-The Yamaha RX-Z1 supports two serial control formats:
-1. Standard ASCII Commands / Codes (e.g. \x0207EA2\x03 format or ASCII command strings)
-2. Yamaha RS-232C Extended Command Set
-
-This module encapsulates command codes, volume conversions (dB <-> percentage <-> raw bytes),
-and message framing with STX (0x02) and ETX (0x03) delimiters.
-"""
+"""Yamaha RX-Z1 RS-232 Serial Protocol Definitions, Encoders, and Parsers."""
 
 from enum import Enum
-from typing import Optional
+from typing import Optional, Dict, Any
 
 
 class PowerState(str, Enum):
@@ -51,8 +43,7 @@ class DSPProgram(str, Enum):
     SURROUND_STANDARD = "Surround Standard"
 
 
-# Mapping friendly source to RX-Z1 command codes
-# RX-Z1 command codes are typically 7-character or ASCII hex sequences
+# Forward code maps
 INPUT_COMMAND_MAP = {
     InputSource.PHONO: "07EA1",
     InputSource.CD: "07EA2",
@@ -97,11 +88,18 @@ DSP_COMMAND_MAP = {
     DSPProgram.ROCK_CONCERT: "07EBB",
 }
 
+# Reverse maps for unsolicited feedback parsing
+CODE_TO_INPUT = {v: k for k, v in INPUT_COMMAND_MAP.items()}
+CODE_TO_POWER = {
+    "07E7E": PowerState.ON,
+    "07E7F": PowerState.STANDBY,
+}
+CODE_TO_DSP = {v: k for k, v in DSP_COMMAND_MAP.items()}
+
 
 def encode_command(code: str, use_framing: bool = True) -> bytes:
     """Frame an RX-Z1 command with STX (0x02) and ETX (0x03) or CR/LF."""
     if use_framing:
-        # Standard Yamaha controller frame: STX + Command + ETX
         return b"\x02" + code.encode("ascii") + b"\x03"
     return (code + "\r\n").encode("ascii")
 
@@ -116,3 +114,49 @@ def percent_to_db(percent: int) -> float:
     """Convert percentage 0-100% to volume dB (-80.0 dB to 0.0 dB)."""
     clamped = max(0, min(100, percent))
     return -80.0 + (clamped / 100.0) * 80.0
+
+
+def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
+    """Parse incoming ASCII frame from RX-Z1.
+    
+    The RX-Z1 responds with or broadcasts status codes.
+    Returns a dict with state update keys (e.g. power, input, volume_step, mute, etc.).
+    """
+    clean = raw_msg.strip("\x02\x03\r\n ").upper()
+    updates: Dict[str, Any] = {}
+
+    if not clean:
+        return updates
+
+    # Check Power
+    if clean in CODE_TO_POWER:
+        updates["power"] = CODE_TO_POWER[clean]
+        return updates
+
+    # Check Input
+    if clean in CODE_TO_INPUT:
+        updates["input"] = CODE_TO_INPUT[clean]
+        return updates
+
+    # Check DSP
+    if clean in CODE_TO_DSP:
+        updates["dsp"] = CODE_TO_DSP[clean]
+        return updates
+
+    # Check Mute
+    if clean == VOLUME_COMMANDS["MUTE_ON"]:
+        updates["mute"] = True
+        return updates
+    elif clean == VOLUME_COMMANDS["MUTE_OFF"]:
+        updates["mute"] = False
+        return updates
+
+    # Check Volume relative steps
+    if clean == VOLUME_COMMANDS["UP"]:
+        updates["volume_step"] = "UP"
+        return updates
+    elif clean == VOLUME_COMMANDS["DOWN"]:
+        updates["volume_step"] = "DOWN"
+        return updates
+
+    return updates

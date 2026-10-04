@@ -21,6 +21,7 @@ from yamaha_serial.protocol.commands import (
     VOLUME_COMMANDS,
     DSP_COMMAND_MAP,
     encode_command,
+    parse_serial_message,
     db_to_percent,
     percent_to_db,
 )
@@ -46,6 +47,74 @@ class YamahaController:
             mock_mode=isinstance(driver, MockSerialDriver)
         )
         self._listeners: Set[Callable[[ReceiverState], asyncio.Task]] = set()
+        self._rx_buffer = bytearray()
+
+        # Connect driver callback to serial incoming bytes handler
+        self.driver.set_data_callback(self._on_serial_data)
+
+    def _on_serial_data(self, data: bytes) -> None:
+        """Accumulate bytes and parse framed messages from RX-Z1."""
+        self._rx_buffer.extend(data)
+
+        # Process frames delimited by STX (0x02) and ETX (0x03) or CRLF
+        while True:
+            # Check for STX ... ETX frame
+            stx_idx = self._rx_buffer.find(b"\x02")
+            if stx_idx != -1:
+                etx_idx = self._rx_buffer.find(b"\x03", stx_idx)
+                if etx_idx != -1:
+                    raw_frame = self._rx_buffer[stx_idx + 1:etx_idx].decode("ascii", errors="replace")
+                    del self._rx_buffer[:etx_idx + 1]
+                    asyncio.create_task(self._handle_incoming_frame(raw_frame))
+                    continue
+
+            # Check for CRLF delimiter
+            crlf_idx = self._rx_buffer.find(b"\r")
+            if crlf_idx != -1:
+                raw_frame = self._rx_buffer[:crlf_idx].decode("ascii", errors="replace").strip("\x02\x03\n")
+                del self._rx_buffer[:crlf_idx + 1]
+                if self._rx_buffer.startswith(b"\n"):
+                    del self._rx_buffer[:1]
+                if raw_frame:
+                    asyncio.create_task(self._handle_incoming_frame(raw_frame))
+                continue
+
+            # If buffer gets too large without delimiters, flush
+            if len(self._rx_buffer) > 256:
+                self._rx_buffer.clear()
+            break
+
+    async def _handle_incoming_frame(self, frame: str) -> None:
+        """Apply parsed state updates and broadcast to WebSocket/clients."""
+        logger.info(f"Incoming serial frame from receiver: {frame}")
+        updates = parse_serial_message(frame)
+        if not updates:
+            return
+
+        changed = False
+        if "power" in updates and self.state.power != updates["power"]:
+            self.state.power = updates["power"]
+            changed = True
+        if "input" in updates and self.state.input != updates["input"]:
+            self.state.input = updates["input"]
+            changed = True
+        if "dsp" in updates and self.state.dsp != updates["dsp"]:
+            self.state.dsp = updates["dsp"]
+            changed = True
+        if "mute" in updates and self.state.mute != updates["mute"]:
+            self.state.mute = updates["mute"]
+            changed = True
+        if "volume_step" in updates:
+            step = updates["volume_step"]
+            if step == "UP":
+                self.state.volume_percent = min(100, self.state.volume_percent + 2)
+            elif step == "DOWN":
+                self.state.volume_percent = max(0, self.state.volume_percent - 2)
+            self.state.volume_db = percent_to_db(self.state.volume_percent)
+            changed = True
+
+        if changed:
+            await self._broadcast_state()
 
     async def start(self) -> None:
         try:
@@ -96,8 +165,6 @@ class YamahaController:
         percent = max(0, min(100, percent))
         self.state.volume_percent = percent
         self.state.volume_db = percent_to_db(percent)
-        # Note: Yamaha RX-Z1 supports direct volume codes or step commands
-        # For precision, we send step adjustments or the direct parameter frame
         await self._broadcast_state()
         return self.state
 
