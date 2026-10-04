@@ -88,7 +88,7 @@ DSP_COMMAND_MAP = {
     DSPProgram.ROCK_CONCERT: "07EBB",
 }
 
-# Real RX-Z1 unsolicited feedback status codes (1021xx for Main Zone input)
+# Real RX-Z1 unsolicited feedback status codes (4021xx / 1021xx for Main Zone input)
 RX_Z1_STATUS_INPUT = {
     "00": InputSource.PHONO,
     "01": InputSource.CD,
@@ -111,6 +111,8 @@ CODE_TO_POWER = {
     "07E7F": PowerState.STANDBY,
     "102001": PowerState.ON,
     "102000": PowerState.STANDBY,
+    "402001": PowerState.ON,
+    "402000": PowerState.STANDBY,
 }
 CODE_TO_DSP = {v: k for k, v in DSP_COMMAND_MAP.items()}
 
@@ -137,11 +139,11 @@ def percent_to_db(percent: int) -> float:
 def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
     """Parse incoming ASCII frame from RX-Z1.
     
-    The Yamaha RX-Z1 unsolicited report frames:
-      - 1021xx: Main Zone Input (00=PHONO, 01=CD, 02=TUNER, 05=DVD, ...)
-      - 1020xx: Main Zone Power (01=ON, 00=STANDBY)
-      - 1022xx: Mute state (00=MUTE OFF, 05=MUTE ON)
-      - 1028xx / 028xx: Master Volume Level
+    The Yamaha RX-Z1 report frames:
+      - 4021xx or 1021xx: Main Zone Input (00=PHONO, 01=CD, 02=TUNER, 05=DVD, ...)
+      - 4020xx or 1020xx: Main Zone Power (01=ON, 00=STANDBY)
+      - 4022xx or 1022xx: Mute state (00=MUTE OFF, other=MUTE ON)
+      - 4028xx or 1028xx: Master Volume Level in hex steps
       - 07Exxx: Command echo
     """
     clean = raw_msg.strip("\x02\x03\r\n ").upper()
@@ -150,8 +152,8 @@ def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
     if not clean:
         return updates
 
-    # RX-Z1 Unsolicited Input Frame: 1021xx or 021xx
-    if clean.startswith("1021") and len(clean) == 6:
+    # RX-Z1 Input Frame: 4021xx or 1021xx or 021xx
+    if (clean.startswith("4021") or clean.startswith("1021")) and len(clean) == 6:
         sub = clean[4:6]
         if sub in RX_Z1_STATUS_INPUT:
             updates["input"] = RX_Z1_STATUS_INPUT[sub]
@@ -162,8 +164,8 @@ def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
             updates["input"] = RX_Z1_STATUS_INPUT[sub]
             return updates
 
-    # RX-Z1 Unsolicited Power Frame: 1020xx or 020xx
-    if clean.startswith("1020") and len(clean) == 6:
+    # RX-Z1 Power Frame: 4020xx or 1020xx or 020xx
+    if (clean.startswith("4020") or clean.startswith("1020")) and len(clean) == 6:
         pwr_code = clean[4:6]
         updates["power"] = PowerState.ON if pwr_code == "01" else PowerState.STANDBY
         return updates
@@ -172,9 +174,9 @@ def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
         updates["power"] = PowerState.ON if pwr_code == "01" else PowerState.STANDBY
         return updates
 
-    # RX-Z1 Unsolicited Mute Frame: 1022xx or 022xx
-    # From traces: 102200 is Mute Off, 102205 is Mute On / Attenuate
-    if clean.startswith("1022") and len(clean) == 6:
+    # RX-Z1 Mute Frame: 4022xx or 1022xx or 022xx
+    # 00 = Mute Off, non-zero (e.g. 05) = Mute On / Attenuate
+    if (clean.startswith("4022") or clean.startswith("1022")) and len(clean) == 6:
         mute_code = clean[4:6]
         updates["mute"] = (mute_code != "00")
         return updates
@@ -182,6 +184,19 @@ def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
         mute_code = clean[3:5]
         updates["mute"] = (mute_code != "00")
         return updates
+
+    # RX-Z1 Volume Frame: 4028xx or 1028xx or 028xx (Hex volume level)
+    if (clean.startswith("4028") or clean.startswith("1028")) and len(clean) == 6:
+        try:
+            vol_hex = clean[4:6]
+            # Convert hex volume byte to percentage
+            vol_int = int(vol_hex, 16)
+            # In RX-Z1: max is typically around 0x64 (100) or higher, normalize to 0-100
+            updates["volume_percent"] = min(100, max(0, int((vol_int / 160.0) * 100)))
+            updates["volume_db"] = percent_to_db(updates["volume_percent"])
+            return updates
+        except ValueError:
+            pass
 
     # Check Power reflection
     if clean in CODE_TO_POWER:
