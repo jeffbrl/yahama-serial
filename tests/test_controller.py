@@ -150,3 +150,41 @@ def test_rx_z1_real_unsolicited_frames():
     assert parse_serial_message("102000") == {"power": PowerState.STANDBY}
     assert parse_serial_message("102200") == {"mute": False}
     assert parse_serial_message("102205") == {"mute": True}
+    # 4026xx inputs
+    assert parse_serial_message("402600") == {"input": InputSource.PHONO}
+    assert parse_serial_message("402621") == {"input": InputSource.CD}
+    assert parse_serial_message("402622") == {"input": InputSource.TUNER}
+    assert parse_serial_message("402624") == {"input": InputSource.MD_TAPE}
+    assert parse_serial_message("402625") == {"input": InputSource.CD_R}
+    assert parse_serial_message("402605") == {"input": InputSource.DVD}
+    assert parse_serial_message("402604") == {"input": InputSource.CD_R}
+    assert parse_serial_message("40260F") == {"input": InputSource.VCR_1}
+    assert parse_serial_message("402629") == {"input": InputSource.VCR_2}
+    assert parse_serial_message("40260B") == {"input": InputSource.V_AUX}
+    # 4028xx / 028xx volume frames
+    vol_res = parse_serial_message("402814")
+    assert "volume_percent" in vol_res
+    assert "volume_db" in vol_res
+    vol_res_short = parse_serial_message("0280C")
+    assert "volume_percent" in vol_res_short
+
+
+@pytest.mark.asyncio
+async def test_volume_frame_updates_controller():
+    driver = MockSerialDriver()
+    controller = YamahaController(driver)
+    await controller.start()
+
+    # Simulate physical volume knob turn on receiver sending 402814
+    driver.simulate_incoming(b"\x02402814\x03")
+    await asyncio.sleep(0.05)
+    # 0x14 = 20 -> 20/160 * 100 = 12%
+    assert controller.state.volume_percent == 12
+
+    # Simulate 402622 (TUNER selected on receiver front panel)
+    driver.simulate_incoming(b"\x02402622\x03")
+    await asyncio.sleep(0.05)
+    assert controller.state.input == InputSource.TUNER
+
+    await controller.stop()
+

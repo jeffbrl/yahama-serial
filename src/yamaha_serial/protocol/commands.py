@@ -88,8 +88,12 @@ DSP_COMMAND_MAP = {
     DSPProgram.ROCK_CONCERT: "07EBB",
 }
 
-# Real RX-Z1 unsolicited feedback status codes (4021xx / 1021xx for Main Zone input)
+# Real RX-Z1 unsolicited feedback status codes
+# Handled formats:
+#   - 4021xx / 1021xx: Main Zone Input
+#   - 4026xx: Input status / function bank
 RX_Z1_STATUS_INPUT = {
+    # 4021xx / standard input codes
     "00": InputSource.PHONO,
     "01": InputSource.CD,
     "02": InputSource.TUNER,
@@ -102,6 +106,13 @@ RX_Z1_STATUS_INPUT = {
     "09": InputSource.VCR_2,
     "0A": InputSource.VCR_3,
     "0B": InputSource.V_AUX,
+    # 4026xx alternative indices
+    "0F": InputSource.VCR_1,
+    "21": InputSource.CD,
+    "22": InputSource.TUNER,
+    "24": InputSource.MD_TAPE,
+    "25": InputSource.CD_R,
+    "29": InputSource.VCR_2,
 }
 
 # Reverse maps for command reflection
@@ -152,13 +163,13 @@ def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
     if not clean:
         return updates
 
-    # RX-Z1 Input Frame: 4021xx or 1021xx or 021xx
-    if (clean.startswith("4021") or clean.startswith("1021")) and len(clean) == 6:
+    # RX-Z1 Input Frame: 4021xx / 1021xx / 4026xx / 1026xx or 021xx / 026xx
+    if (clean.startswith("4021") or clean.startswith("1021") or clean.startswith("4026") or clean.startswith("1026")) and len(clean) == 6:
         sub = clean[4:6]
         if sub in RX_Z1_STATUS_INPUT:
             updates["input"] = RX_Z1_STATUS_INPUT[sub]
             return updates
-    elif clean.startswith("021") and len(clean) == 5:
+    elif (clean.startswith("021") or clean.startswith("026")) and len(clean) == 5:
         sub = clean[3:5]
         if sub in RX_Z1_STATUS_INPUT:
             updates["input"] = RX_Z1_STATUS_INPUT[sub]
@@ -189,9 +200,16 @@ def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
     if (clean.startswith("4028") or clean.startswith("1028")) and len(clean) == 6:
         try:
             vol_hex = clean[4:6]
-            # Convert hex volume byte to percentage
             vol_int = int(vol_hex, 16)
-            # In RX-Z1: max is typically around 0x64 (100) or higher, normalize to 0-100
+            updates["volume_percent"] = min(100, max(0, int((vol_int / 160.0) * 100)))
+            updates["volume_db"] = percent_to_db(updates["volume_percent"])
+            return updates
+        except ValueError:
+            pass
+    elif clean.startswith("028") and len(clean) == 5:
+        try:
+            vol_hex = clean[3:5]
+            vol_int = int(vol_hex, 16)
             updates["volume_percent"] = min(100, max(0, int((vol_int / 160.0) * 100)))
             updates["volume_db"] = percent_to_db(updates["volume_percent"])
             return updates

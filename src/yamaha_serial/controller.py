@@ -110,6 +110,11 @@ class YamahaController:
             self.state.mute = updates["mute"]
             changed = True
             logger.info(f"State updated: mute -> {self.state.mute}")
+        if "volume_percent" in updates and self.state.volume_percent != updates["volume_percent"]:
+            self.state.volume_percent = updates["volume_percent"]
+            self.state.volume_db = updates.get("volume_db", percent_to_db(self.state.volume_percent))
+            changed = True
+            logger.info(f"State updated: volume -> {self.state.volume_percent}% ({self.state.volume_db:.1f} dB)")
         if "volume_step" in updates:
             step = updates["volume_step"]
             if step == "UP":
@@ -118,7 +123,7 @@ class YamahaController:
                 self.state.volume_percent = max(0, self.state.volume_percent - 2)
             self.state.volume_db = percent_to_db(self.state.volume_percent)
             changed = True
-            logger.info(f"State updated: volume -> {self.state.volume_percent}% ({self.state.volume_db} dB)")
+            logger.info(f"State updated: volume -> {self.state.volume_percent}% ({self.state.volume_db:.1f} dB)")
 
         if changed:
             await self._broadcast_state()
