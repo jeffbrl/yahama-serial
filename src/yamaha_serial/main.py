@@ -2,6 +2,7 @@
 
 import os
 import sys
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
@@ -13,15 +14,24 @@ from yamaha_serial.config import settings
 from yamaha_serial.controller import create_controller
 from yamaha_serial.api.routes import router as api_router, setup_routes
 
+# Configure root logger so serial and driver log lines print to stdout
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("yamaha_serial")
+
 controller = create_controller()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    logger.info("Starting Yamaha RX-Z1 Serial Controller...")
     await controller.start()
     yield
     # Shutdown
+    logger.info("Stopping Yamaha RX-Z1 Serial Controller...")
     await controller.stop()
 
 

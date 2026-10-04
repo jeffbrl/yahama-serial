@@ -26,7 +26,7 @@ from yamaha_serial.protocol.commands import (
     percent_to_db,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("yamaha_serial.controller")
 
 
 class ReceiverState(BaseModel):
@@ -54,6 +54,7 @@ class YamahaController:
 
     def _on_serial_data(self, data: bytes) -> None:
         """Accumulate bytes and parse framed messages from RX-Z1."""
+        logger.debug(f"Raw serial chunk received: {data}")
         self._rx_buffer.extend(data)
 
         # Process frames delimited by STX (0x02) and ETX (0x03) or CRLF
@@ -89,21 +90,26 @@ class YamahaController:
         logger.info(f"Incoming serial frame from receiver: {frame}")
         updates = parse_serial_message(frame)
         if not updates:
+            logger.debug(f"Frame not recognized or ignored: {frame}")
             return
 
         changed = False
         if "power" in updates and self.state.power != updates["power"]:
             self.state.power = updates["power"]
             changed = True
+            logger.info(f"State updated: power -> {self.state.power}")
         if "input" in updates and self.state.input != updates["input"]:
             self.state.input = updates["input"]
             changed = True
+            logger.info(f"State updated: input -> {self.state.input}")
         if "dsp" in updates and self.state.dsp != updates["dsp"]:
             self.state.dsp = updates["dsp"]
             changed = True
+            logger.info(f"State updated: dsp -> {self.state.dsp}")
         if "mute" in updates and self.state.mute != updates["mute"]:
             self.state.mute = updates["mute"]
             changed = True
+            logger.info(f"State updated: mute -> {self.state.mute}")
         if "volume_step" in updates:
             step = updates["volume_step"]
             if step == "UP":
@@ -112,14 +118,17 @@ class YamahaController:
                 self.state.volume_percent = max(0, self.state.volume_percent - 2)
             self.state.volume_db = percent_to_db(self.state.volume_percent)
             changed = True
+            logger.info(f"State updated: volume -> {self.state.volume_percent}% ({self.state.volume_db} dB)")
 
         if changed:
             await self._broadcast_state()
 
     async def start(self) -> None:
         try:
+            logger.info("Initializing serial driver connection...")
             await self.driver.connect()
             self.state.connected = self.driver.is_connected()
+            logger.info(f"Serial driver connection status: connected={self.state.connected}")
         except Exception as e:
             logger.warning(f"Could not connect driver on startup: {e}")
             self.state.connected = False
