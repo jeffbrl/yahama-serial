@@ -89,11 +89,8 @@ DSP_COMMAND_MAP = {
 }
 
 # Real RX-Z1 unsolicited feedback status codes
-# Handled formats:
-#   - 4021xx / 1021xx: Main Zone Input
-#   - 4026xx: Input status / function bank
-RX_Z1_STATUS_INPUT = {
-    # 4021xx / standard input codes
+# 4021xx / 1021xx / 021xx: Main Zone Input
+RX_Z1_INPUT_4021 = {
     "00": InputSource.PHONO,
     "01": InputSource.CD,
     "02": InputSource.TUNER,
@@ -106,13 +103,29 @@ RX_Z1_STATUS_INPUT = {
     "09": InputSource.VCR_2,
     "0A": InputSource.VCR_3,
     "0B": InputSource.V_AUX,
-    # 4026xx alternative indices
-    "0F": InputSource.VCR_1,
+}
+
+# 4026xx / 1026xx / 026xx: Physical input knob / function bank
+# On the RX-Z1 front panel rotary selector:
+# 24 is CD-R, 25 is MD/TAPE (or vice versa in alternate numbering), 21 is CD, 22 is TUNER,
+# 00 is PHONO, 05 is DVD, 0F is VCR 1, 29 is VCR 2, 0B is V-AUX
+RX_Z1_INPUT_4026 = {
+    "00": InputSource.PHONO,
     "21": InputSource.CD,
     "22": InputSource.TUNER,
-    "24": InputSource.MD_TAPE,
-    "25": InputSource.CD_R,
+    "24": InputSource.CD_R,
+    "25": InputSource.MD_TAPE,
+    "03": InputSource.MD_TAPE,
+    "04": InputSource.CD_R,
+    "05": InputSource.DVD,
+    "06": InputSource.D_TV,
+    "07": InputSource.CBL_SAT,
+    "08": InputSource.VCR_1,
+    "0F": InputSource.VCR_1,
+    "09": InputSource.VCR_2,
     "29": InputSource.VCR_2,
+    "0A": InputSource.VCR_3,
+    "0B": InputSource.V_AUX,
 }
 
 # Reverse maps for command reflection
@@ -163,16 +176,28 @@ def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
     if not clean:
         return updates
 
-    # RX-Z1 Input Frame: 4021xx / 1021xx / 4026xx / 1026xx or 021xx / 026xx
-    if (clean.startswith("4021") or clean.startswith("1021") or clean.startswith("4026") or clean.startswith("1026")) and len(clean) == 6:
+    # RX-Z1 Input Frame: 4021xx / 1021xx or 021xx (Main Zone Input)
+    if (clean.startswith("4021") or clean.startswith("1021")) and len(clean) == 6:
         sub = clean[4:6]
-        if sub in RX_Z1_STATUS_INPUT:
-            updates["input"] = RX_Z1_STATUS_INPUT[sub]
+        if sub in RX_Z1_INPUT_4021:
+            updates["input"] = RX_Z1_INPUT_4021[sub]
             return updates
-    elif (clean.startswith("021") or clean.startswith("026")) and len(clean) == 5:
+    elif clean.startswith("021") and len(clean) == 5:
         sub = clean[3:5]
-        if sub in RX_Z1_STATUS_INPUT:
-            updates["input"] = RX_Z1_STATUS_INPUT[sub]
+        if sub in RX_Z1_INPUT_4021:
+            updates["input"] = RX_Z1_INPUT_4021[sub]
+            return updates
+
+    # RX-Z1 Input Knob / Function Bank Frame: 4026xx / 1026xx or 026xx
+    if (clean.startswith("4026") or clean.startswith("1026")) and len(clean) == 6:
+        sub = clean[4:6]
+        if sub in RX_Z1_INPUT_4026:
+            updates["input"] = RX_Z1_INPUT_4026[sub]
+            return updates
+    elif clean.startswith("026") and len(clean) == 5:
+        sub = clean[3:5]
+        if sub in RX_Z1_INPUT_4026:
+            updates["input"] = RX_Z1_INPUT_4026[sub]
             return updates
 
     # RX-Z1 Power Frame: 4020xx or 1020xx or 020xx

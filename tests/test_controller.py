@@ -154,8 +154,8 @@ def test_rx_z1_real_unsolicited_frames():
     assert parse_serial_message("402600") == {"input": InputSource.PHONO}
     assert parse_serial_message("402621") == {"input": InputSource.CD}
     assert parse_serial_message("402622") == {"input": InputSource.TUNER}
-    assert parse_serial_message("402624") == {"input": InputSource.MD_TAPE}
-    assert parse_serial_message("402625") == {"input": InputSource.CD_R}
+    assert parse_serial_message("402624") == {"input": InputSource.CD_R}
+    assert parse_serial_message("402625") == {"input": InputSource.MD_TAPE}
     assert parse_serial_message("402605") == {"input": InputSource.DVD}
     assert parse_serial_message("402604") == {"input": InputSource.CD_R}
     assert parse_serial_message("40260F") == {"input": InputSource.VCR_1}
