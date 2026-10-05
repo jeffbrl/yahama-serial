@@ -148,6 +148,13 @@ def test_rx_z1_real_unsolicited_frames():
     assert parse_serial_message("102105") == {"input": InputSource.DVD}
     assert parse_serial_message("102001") == {"power": PowerState.ON}
     assert parse_serial_message("102000") == {"power": PowerState.STANDBY}
+    # 3010xx power status frames from RX-Z1 burst feedback
+    assert parse_serial_message("301001") == {"power": PowerState.ON}
+    assert parse_serial_message("301000") == {"power": PowerState.STANDBY}
+    assert parse_serial_message("101001") == {"power": PowerState.ON}
+    assert parse_serial_message("101000") == {"power": PowerState.STANDBY}
+    assert parse_serial_message("01001") == {"power": PowerState.ON}
+    assert parse_serial_message("01000") == {"power": PowerState.STANDBY}
     assert parse_serial_message("102200") == {"mute": False}
     assert parse_serial_message("102205") == {"mute": True}
     # 4026xx inputs
@@ -185,6 +192,33 @@ async def test_volume_frame_updates_controller():
     driver.simulate_incoming(b"\x02402622\x03")
     await asyncio.sleep(0.05)
     assert controller.state.input == InputSource.TUNER
+
+    await controller.stop()
+
+
+@pytest.mark.asyncio
+async def test_power_frame_updates_controller():
+    driver = MockSerialDriver()
+    controller = YamahaController(driver)
+    await controller.start()
+
+    assert controller.state.power == PowerState.STANDBY
+
+    # Simulate receiver sending 301001 (unsolicited power ON report)
+    driver.simulate_incoming(b"\x02301001\x03")
+    await asyncio.sleep(0.05)
+    assert controller.state.power == PowerState.ON
+
+    # Simulate receiver sending 301000 (power STANDBY report)
+    driver.simulate_incoming(b"\x02301000\x03")
+    await asyncio.sleep(0.05)
+    assert controller.state.power == PowerState.STANDBY
+
+    # Simulate active input report arriving while in STANDBY (e.g. receiver turned on by input knob)
+    driver.simulate_incoming(b"\x02402102\x03")
+    await asyncio.sleep(0.05)
+    assert controller.state.input == InputSource.TUNER
+    assert controller.state.power == PowerState.ON
 
     await controller.stop()
 

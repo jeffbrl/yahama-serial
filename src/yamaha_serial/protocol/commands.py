@@ -151,8 +151,14 @@ CODE_TO_INPUT.update({
 CODE_TO_POWER = {
     "07E7E": PowerState.ON,
     "07E7F": PowerState.STANDBY,
+    "101001": PowerState.ON,
+    "101000": PowerState.STANDBY,
+    "301001": PowerState.ON,
+    "301000": PowerState.STANDBY,
     "102001": PowerState.ON,
     "102000": PowerState.STANDBY,
+    "302001": PowerState.ON,
+    "302000": PowerState.STANDBY,
     "402001": PowerState.ON,
     "402000": PowerState.STANDBY,
 }
@@ -218,12 +224,14 @@ def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
             updates["input"] = RX_Z1_INPUT_4026[sub]
             return updates
 
-    # RX-Z1 Power Frame: 4020xx or 1020xx or 020xx
-    if (clean.startswith("4020") or clean.startswith("1020")) and len(clean) == 6:
+    # RX-Z1 Power Frame: 3010xx / 1010xx / 010xx / 3020xx / 4020xx / 1020xx / 020xx
+    # 01 = Power ON, 00 = Standby / Power OFF
+    if (clean.startswith("3010") or clean.startswith("1010") or
+        clean.startswith("3020") or clean.startswith("4020") or clean.startswith("1020")) and len(clean) == 6:
         pwr_code = clean[4:6]
         updates["power"] = PowerState.ON if pwr_code == "01" else PowerState.STANDBY
         return updates
-    elif clean.startswith("020") and len(clean) == 5:
+    elif (clean.startswith("010") or clean.startswith("020")) and len(clean) == 5:
         pwr_code = clean[3:5]
         updates["power"] = PowerState.ON if pwr_code == "01" else PowerState.STANDBY
         return updates

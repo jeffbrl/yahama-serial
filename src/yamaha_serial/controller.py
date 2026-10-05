@@ -98,6 +98,12 @@ class YamahaController:
             self.state.power = updates["power"]
             changed = True
             logger.info(f"State updated: power -> {self.state.power}")
+        elif any(k in updates for k in ("input", "dsp", "volume_percent", "volume_step")) and self.state.power != PowerState.ON:
+            # Active operational frames indicate the receiver is awake and running
+            self.state.power = PowerState.ON
+            changed = True
+            logger.info(f"State updated: power -> {self.state.power} (inferred from operational feedback)")
+
         if "input" in updates and self.state.input != updates["input"]:
             self.state.input = updates["input"]
             changed = True
@@ -171,6 +177,11 @@ class YamahaController:
 
         code = POWER_COMMAND_MAP.get(power, "07EA0")
         await self.send_raw_code(code)
+        # Yamaha AVRs in cold standby often need a secondary pulse to reliably wake
+        if next_state == PowerState.ON:
+            await asyncio.sleep(0.05)
+            await self.send_raw_code(code)
+
         self.state.power = next_state
         await self._broadcast_state()
         return self.state
