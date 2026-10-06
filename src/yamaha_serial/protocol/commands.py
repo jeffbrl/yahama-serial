@@ -155,6 +155,7 @@ CODE_TO_INPUT.update({
 CODE_TO_POWER = {
     "07E7E": PowerState.ON,
     "07E7F": PowerState.STANDBY,
+    "300000": PowerState.ON,
     "101001": PowerState.ON,
     "101000": PowerState.STANDBY,
     "301001": PowerState.ON,
@@ -166,6 +167,7 @@ CODE_TO_POWER = {
     "402001": PowerState.ON,
     "402000": PowerState.STANDBY,
 }
+
 CODE_TO_DSP = {v: k for k, v in DSP_COMMAND_MAP.items()}
 
 

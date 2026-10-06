@@ -50,6 +50,7 @@ class YamahaController:
         self._listeners: Set[Callable[[ReceiverState], asyncio.Task]] = set()
         self._rx_buffer = bytearray()
         self._poll_task: Optional[asyncio.Task] = None
+        self._response_received: bool = False
 
         # Connect driver callback to serial incoming bytes handler
         self.driver.set_data_callback(self._on_serial_data)
@@ -57,6 +58,7 @@ class YamahaController:
     def _on_serial_data(self, data: bytes) -> None:
         """Accumulate bytes and parse framed messages from RX-Z1."""
         logger.debug(f"Raw serial chunk received: {data}")
+        self._response_received = True
         self._rx_buffer.extend(data)
 
         # Process frames delimited by STX (0x02) and ETX (0x03) or CRLF
@@ -145,14 +147,32 @@ class YamahaController:
     async def _poll_loop(self) -> None:
         """Periodic background task to poll receiver state and keep status synchronized."""
         logger.info(f"Starting receiver status polling loop (interval={settings.POLL_INTERVAL}s)")
+        timeout = min(1.5, max(0.02, settings.POLL_INTERVAL / 2.0))
         while True:
             try:
                 await asyncio.sleep(settings.POLL_INTERVAL)
+                if not self.driver.is_connected():
+                    continue
+
+                self._response_received = False
                 await self.poll_status()
+                await asyncio.sleep(timeout)
+
+                if not self._response_received:
+                    # Retry once to avoid false positive from a single dropped byte
+                    await self.poll_status()
+                    await asyncio.sleep(timeout)
+
+                if not self._response_received and self.state.power == PowerState.ON:
+                    self.state.power = PowerState.STANDBY
+                    logger.info("State updated: power -> STANDBY (receiver unresponsive to poll)")
+                    await self._broadcast_state()
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.warning(f"Error during status poll: {e}")
+
 
     async def start(self) -> None:
         try:

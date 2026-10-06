@@ -148,7 +148,8 @@ def test_rx_z1_real_unsolicited_frames():
     assert parse_serial_message("102105") == {"input": InputSource.DVD}
     assert parse_serial_message("102001") == {"power": PowerState.ON}
     assert parse_serial_message("102000") == {"power": PowerState.STANDBY}
-    # 3010xx power status frames from RX-Z1 burst feedback
+    # 3010xx and 300000 power status frames from RX-Z1 burst feedback and active poll response
+    assert parse_serial_message("300000") == {"power": PowerState.ON}
     assert parse_serial_message("301001") == {"power": PowerState.ON}
     assert parse_serial_message("301000") == {"power": PowerState.STANDBY}
     assert parse_serial_message("101001") == {"power": PowerState.ON}
@@ -245,7 +246,7 @@ async def test_status_polling_updates_power(monkeypatch):
 
     # Receiver power state changes back to standby externally
     driver._simulated_power = "00"
-    await asyncio.sleep(0.12)
+    await asyncio.sleep(0.25)
     assert controller.state.power == PowerState.STANDBY
 
     await controller.stop()

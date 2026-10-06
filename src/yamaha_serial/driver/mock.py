@@ -44,7 +44,8 @@ class MockSerialDriver(BaseSerialDriver):
         elif "07E7F" in raw_str:
             self._simulated_power = "00"
         elif "20000" in raw_str and self._callback:
-            self._callback(b"\x023010" + self._simulated_power.encode("ascii") + b"\x03")
+            if self._simulated_power == "01":
+                self._callback(b"\x02300000\x03")
 
         return b"\x06"
 
