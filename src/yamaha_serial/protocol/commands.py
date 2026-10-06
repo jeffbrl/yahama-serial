@@ -76,6 +76,10 @@ VOLUME_COMMANDS = {
     "MUTE_TOGGLE": "07EA6",
 }
 
+# Receiver status report query command (requests current status frame burst)
+STATUS_POLL_COMMAND = "20000"
+
+
 DSP_COMMAND_MAP = {
     DSPProgram.DIRECT: "07EB0",
     DSPProgram.STEREO_2CH: "07EB1",

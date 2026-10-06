@@ -12,6 +12,7 @@ class MockSerialDriver(BaseSerialDriver):
     def __init__(self):
         self._connected = False
         self._callback: Optional[Callable[[bytes], None]] = None
+        self._simulated_power: str = "00"
 
     async def connect(self) -> None:
         await asyncio.sleep(0.05)
@@ -37,9 +38,18 @@ class MockSerialDriver(BaseSerialDriver):
         ascii_repr = data.decode("ascii", errors="replace").strip()
         logger.info(f"[MockSerialDriver] Sent bytes: {hex_repr} ('{ascii_repr}')")
 
+        raw_str = data.strip(b"\x02\x03\r\n ").decode("ascii", errors="replace")
+        if "07E7E" in raw_str:
+            self._simulated_power = "01"
+        elif "07E7F" in raw_str:
+            self._simulated_power = "00"
+        elif "20000" in raw_str and self._callback:
+            self._callback(b"\x023010" + self._simulated_power.encode("ascii") + b"\x03")
+
         return b"\x06"
 
     def simulate_incoming(self, data: bytes) -> None:
         """Helper to test unsolicited incoming serial frames from the receiver."""
         if self._callback:
             self._callback(data)
+

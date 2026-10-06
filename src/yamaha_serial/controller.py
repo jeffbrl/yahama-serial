@@ -5,7 +5,7 @@ Coordinates receiver state, formats commands, and notifies subscribers.
 
 import asyncio
 import logging
-from typing import Callable, Set
+from typing import Callable, Set, Optional
 from pydantic import BaseModel
 
 from yamaha_serial.config import settings
@@ -20,6 +20,7 @@ from yamaha_serial.protocol.commands import (
     INPUT_COMMAND_MAP,
     VOLUME_COMMANDS,
     DSP_COMMAND_MAP,
+    STATUS_POLL_COMMAND,
     encode_command,
     parse_serial_message,
     db_to_percent,
@@ -48,6 +49,7 @@ class YamahaController:
         )
         self._listeners: Set[Callable[[ReceiverState], asyncio.Task]] = set()
         self._rx_buffer = bytearray()
+        self._poll_task: Optional[asyncio.Task] = None
 
         # Connect driver callback to serial incoming bytes handler
         self.driver.set_data_callback(self._on_serial_data)
@@ -134,6 +136,24 @@ class YamahaController:
         if changed:
             await self._broadcast_state()
 
+    async def poll_status(self) -> None:
+        """Query receiver for its current operational status report."""
+        if self.driver.is_connected():
+            logger.debug("Polling receiver status...")
+            await self.send_raw_code(STATUS_POLL_COMMAND)
+
+    async def _poll_loop(self) -> None:
+        """Periodic background task to poll receiver state and keep status synchronized."""
+        logger.info(f"Starting receiver status polling loop (interval={settings.POLL_INTERVAL}s)")
+        while True:
+            try:
+                await asyncio.sleep(settings.POLL_INTERVAL)
+                await self.poll_status()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning(f"Error during status poll: {e}")
+
     async def start(self) -> None:
         try:
             logger.info("Initializing serial driver connection...")
@@ -143,9 +163,27 @@ class YamahaController:
         except Exception as e:
             logger.warning(f"Could not connect driver on startup: {e}")
             self.state.connected = False
+
+        if self.state.connected:
+            try:
+                await self.poll_status()
+            except Exception as e:
+                logger.debug(f"Initial status poll failed: {e}")
+
+        if settings.ENABLE_POLLING:
+            self._poll_task = asyncio.create_task(self._poll_loop())
+
         await self._broadcast_state()
 
     async def stop(self) -> None:
+        if self._poll_task and not self._poll_task.done():
+            self._poll_task.cancel()
+            try:
+                await self._poll_task
+            except asyncio.CancelledError:
+                pass
+            self._poll_task = None
+
         await self.driver.disconnect()
         self.state.connected = False
         await self._broadcast_state()

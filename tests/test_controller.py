@@ -219,6 +219,50 @@ async def test_power_frame_updates_controller():
     await asyncio.sleep(0.05)
     assert controller.state.input == InputSource.TUNER
     assert controller.state.power == PowerState.ON
+    await controller.stop()
+
+
+
+@pytest.mark.asyncio
+async def test_status_polling_updates_power(monkeypatch):
+    from yamaha_serial.config import settings
+
+    monkeypatch.setattr(settings, "ENABLE_POLLING", True)
+    monkeypatch.setattr(settings, "POLL_INTERVAL", 0.05)
+
+    driver = MockSerialDriver()
+    controller = YamahaController(driver)
+    await controller.start()
+
+    assert controller.state.power == PowerState.STANDBY
+
+    # Receiver power state changes externally (e.g. physical button or IR remote)
+    driver._simulated_power = "01"
+
+    # Wait for periodic poll to trigger and synchronize state
+    await asyncio.sleep(0.12)
+    assert controller.state.power == PowerState.ON
+
+    # Receiver power state changes back to standby externally
+    driver._simulated_power = "00"
+    await asyncio.sleep(0.12)
+    assert controller.state.power == PowerState.STANDBY
 
     await controller.stop()
+    assert controller._poll_task is None
+
+
+@pytest.mark.asyncio
+async def test_polling_disabled(monkeypatch):
+    from yamaha_serial.config import settings
+
+    monkeypatch.setattr(settings, "ENABLE_POLLING", False)
+
+    driver = MockSerialDriver()
+    controller = YamahaController(driver)
+    await controller.start()
+
+    assert controller._poll_task is None
+    await controller.stop()
+
 

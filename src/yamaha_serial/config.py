@@ -75,10 +75,15 @@ class Settings(BaseSettings):
     # Operation Mode: True simulates serial hardware without physical device
     MOCK_SERIAL: bool = True
 
+    # Status Polling Settings
+    ENABLE_POLLING: bool = True
+    POLL_INTERVAL: float = 10.0
+
     # Web Server Settings
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     LOG_LEVEL: str = "info"
+
 
 
 settings = Settings()
