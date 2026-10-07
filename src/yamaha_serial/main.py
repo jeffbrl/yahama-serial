@@ -58,12 +58,15 @@ if STATIC_DIR.exists():
 
 
 def run():
+    app_target = "yamaha_serial.main:app" if settings.RELOAD else app
+    reload_dirs = [str(Path(__file__).parent.parent)] if settings.RELOAD else None
     uvicorn.run(
-        app,
+        app_target,
         host=settings.HOST,
         port=settings.PORT,
         log_level=settings.LOG_LEVEL,
-        reload=False,
+        reload=settings.RELOAD,
+        reload_dirs=reload_dirs,
     )
 
 

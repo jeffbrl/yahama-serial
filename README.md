@@ -107,6 +107,8 @@ The application is configured through environment variables or a `.env` file:
 | `SERIAL_TIMEOUT` | `1.0` | Read timeout in seconds. |
 | `HOST` | `0.0.0.0` | Network interface to bind HTTP/WebSocket server. |
 | `PORT` | `8000` | HTTP port. |
+| `RELOAD` | `false` | Enable live auto-reloading when source files or templates change. |
+
 
 Example `.env` file for physical Raspberry Pi deployment:
 ```env
