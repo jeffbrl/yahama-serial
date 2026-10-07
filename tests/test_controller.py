@@ -267,3 +267,28 @@ async def test_polling_disabled(monkeypatch):
     await controller.stop()
 
 
+@pytest.mark.asyncio
+async def test_startup_power_check_when_avr_is_on():
+    driver = MockSerialDriver()
+    # AVR is already on before controller starts
+    driver._simulated_power = "01"
+    controller = YamahaController(driver)
+    await controller.start()
+
+    assert controller.state.power == PowerState.ON
+    await controller.stop()
+
+
+@pytest.mark.asyncio
+async def test_startup_power_check_when_avr_is_standby():
+    driver = MockSerialDriver()
+    # AVR is in standby before controller starts
+    driver._simulated_power = "00"
+    controller = YamahaController(driver)
+    await controller.start()
+
+    assert controller.state.power == PowerState.STANDBY
+    await controller.stop()
+
+
+

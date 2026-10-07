@@ -230,9 +230,12 @@ def parse_serial_message(raw_msg: str) -> Dict[str, Any]:
             updates["input"] = RX_Z1_INPUT_4026[sub]
             return updates
 
-    # RX-Z1 Power Frame: 3010xx / 1010xx / 010xx / 3020xx / 4020xx / 1020xx / 020xx
+    # RX-Z1 Power Frame: 3010xx / 1010xx / 010xx / 3020xx / 4020xx / 1020xx / 020xx / 300000
     # 01 = Power ON, 00 = Standby / Power OFF
-    if (clean.startswith("3010") or clean.startswith("1010") or
+    if clean == "300000":
+        updates["power"] = PowerState.ON
+        return updates
+    elif (clean.startswith("3010") or clean.startswith("1010") or
         clean.startswith("3020") or clean.startswith("4020") or clean.startswith("1020")) and len(clean) == 6:
         pwr_code = clean[4:6]
         updates["power"] = PowerState.ON if pwr_code == "01" else PowerState.STANDBY

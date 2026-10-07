@@ -185,10 +185,36 @@ class YamahaController:
             self.state.connected = False
 
         if self.state.connected:
-            try:
-                await self.poll_status()
-            except Exception as e:
-                logger.debug(f"Initial status poll failed: {e}")
+            # Allow port and transport to settle before transmitting
+            settle_time = 0.05 if isinstance(self.driver, MockSerialDriver) else 0.2
+            await asyncio.sleep(settle_time)
+            self._rx_buffer.clear()
+            self._response_received = False
+
+            # Active probe for initial receiver power state
+            logger.info("Performing initial receiver power state check...")
+            probe_step = 0.03 if isinstance(self.driver, MockSerialDriver) else 0.05
+            max_steps = 4 if isinstance(self.driver, MockSerialDriver) else 10  # ~120ms mock, ~500ms hardware
+            for attempt in range(2):
+                try:
+                    await self.poll_status()
+                except Exception as e:
+                    logger.debug(f"Startup poll attempt {attempt + 1} failed: {e}")
+
+                for _ in range(max_steps):
+                    await asyncio.sleep(probe_step)
+                    if self._response_received or self.state.power == PowerState.ON:
+                        break
+
+                if self._response_received or self.state.power == PowerState.ON:
+                    break
+
+            if self._response_received or self.state.power == PowerState.ON:
+                self.state.power = PowerState.ON
+                logger.info("Initial power state detected: ON")
+            else:
+                self.state.power = PowerState.STANDBY
+                logger.info("Initial power state detected: STANDBY (receiver unresponsive to poll)")
 
         if settings.ENABLE_POLLING:
             self._poll_task = asyncio.create_task(self._poll_loop())
