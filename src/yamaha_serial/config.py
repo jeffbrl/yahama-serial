@@ -24,11 +24,8 @@ def find_config_file() -> Optional[str]:
     if explicit and Path(explicit).is_file():
         return explicit
 
-    # Determine executable/project directory
-    if getattr(sys, "frozen", False):
-        app_dir = Path(sys.executable).resolve().parent
-    else:
-        app_dir = Path(__file__).resolve().parent.parent.parent
+    # Project root directory
+    app_dir = Path(__file__).resolve().parent.parent.parent
 
     home_config = Path.home() / ".config" / "yamaha-serial"
 

@@ -4,11 +4,15 @@ After=network.target
 
 [Service]
 Type=simple
-User=jeffl
-# When using system config, the service can find /etc/yamaha-serial/config.env automatically
-ExecStart=/usr/local/bin/yamaha-serial-armv6
+# Update User, WorkingDirectory, and ExecStart to match your environment:
+# User=pi
+# WorkingDirectory=/home/pi/development/yahama-serial
+Environment="PYTHONPATH=src"
+Environment="MOCK_SERIAL=false"
+ExecStart=/path/to/yahama-serial/.venv/bin/python -m yamaha_serial.main
 Restart=always
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
+

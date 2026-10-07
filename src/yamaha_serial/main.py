@@ -46,11 +46,8 @@ app = FastAPI(
 setup_routes(controller)
 app.include_router(api_router)
 
-# Resolve static directory (handles PyInstaller bundle _MEIPASS extraction)
-if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-    STATIC_DIR = Path(sys._MEIPASS) / "yamaha_serial" / "static"
-else:
-    STATIC_DIR = Path(__file__).parent / "static"
+# Resolve static web assets directory
+STATIC_DIR = Path(__file__).parent / "static"
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

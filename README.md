@@ -169,7 +169,7 @@ sudo usermod -a -G dialout $USER
 ### 2. Auto-start with systemd
 A systemd service unit template is included: [yamaha-serial.service](file:///home/jeffl/development/yamaha-serial/yamaha-serial.service).
 
-1. Edit the service file if paths or usernames differ:
+1. Edit the service file to configure your `User`, `WorkingDirectory`, and `.venv` path:
    ```bash
    nano yamaha-serial.service
    ```
